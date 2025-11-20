@@ -8,6 +8,20 @@ class Flow2D():
     Solves the equations of motion for 2D barotropic flow assuming periodic boundary conditions
     """
 
+    def __setup_wavenumbers(self, ny, nx, dy, dx):
+        """
+        Generate meshgrid of wavenumbers used to solve the Laplace equation
+        """
+        ell = 2 * np.pi * fft.fftfreq(ny, d=dy)
+        kay = 2 * np.pi * fft.rfftfreq(nx, d=dx)
+        K, L = np.meshgrid(kay, ell, indexing='xy')
+        K2=(K**2+L**2)
+
+        # get rid of K=0 to prevent division by zero later on
+        K2[0,0] = (K2[1,0] + K[0,1] + K[1,1])/3
+
+        return K2
+
     def __init__(self, zeta0, dt, dx, dy, T, history_interval, kappa):
         """
         - zeta0 is the doubly periodic vorticity initial condition
@@ -38,21 +52,25 @@ class Flow2D():
         # history interval
         self.history_interval = history_interval
 
-        # parameters
+        # diffusivity
         self.kappa = kappa
+        
+        # wavenumber array for FFT
+        self.K2 = self.__setup_wavenumbers(self.ny, self.nx, self.dy, self.dx)
+        
 
 
 
     def __partialx(self, f):
         """
-        Compute the partial derivative of f(x,y) w.r.t. x assuming periodic boundaries
+        Compute the partial derivative of f(x,y) w.r.t. x using centered differences. Assumes periodic boundaries
         """
         dx = self.dx
         return (np.roll(f, shift=-1, axis=1) - np.roll(f, shift=1, axis=1)) / (2*dx)
 
     def __partialy(self, f):
         """
-        Compute the partial derivative of f(x,y) w.r.t y assuming periodic boundaries
+        Compute the partial derivative of f(x,y) w.r.t y using centered differences. Assumes periodic boundaries
         """
         dy = self.dy
 
@@ -60,7 +78,7 @@ class Flow2D():
     
     def __laplacian(self, f):
         """
-        Compute the laplacian of f(x,y) at x = i*dx and y = j*dy
+        Compute the laplacian of f(x,y) with centered differences. Assumes periodic boundaries
         """
         dx = self.dx
         dy = self.dy
@@ -76,11 +94,11 @@ class Flow2D():
         """
         return np.max(np.abs(self.__partialx(fx) + self.__partialy(fy)))
     
-    def __total_energy(self, fx, fy):
+    def __total_energy(self, u, v):
         """
-        Compute the total energy of the vector field given by fx(x,y) and fy(x,y)
+        Compute the total energy of the velocity field (u, v)
         """
-        return np.sum(fx**2+fy**2)
+        return np.sum(u**2+v**2)/2
         
     def __update_zeta(self, zeta, u, v):
         """
@@ -93,10 +111,10 @@ class Flow2D():
         
         # time-split diffusion step
         arr += (self.dt/2) * self.kappa * self.__laplacian(zeta)
-        
+
         return arr
     
-    def __get_streamfunction(self, zeta, K2):
+    def __get_streamfunction(self, zeta):
         """
         Get stream function from solving the laplace equation Laplacian(psi) = zeta
 
@@ -107,7 +125,7 @@ class Flow2D():
 
         zeta_transform = fft.rfft2(zeta, (ny, nx))
 
-        psi_transform = - zeta_transform / K2 
+        psi_transform = - zeta_transform / self.K2 
         psi = fft.irfft2(psi_transform, s=(ny, nx))
 
         return psi
@@ -120,6 +138,12 @@ class Flow2D():
         v = self.__partialx(psi)
         return u, v
     
+    def __update(self, zeta, u, v):
+            zeta_new = self.__update_zeta(zeta, u, v)
+            psi_new = self.__get_streamfunction(zeta_new)
+            u_new, v_new = self.__get_wind(psi_new)
+            return zeta_new, u_new, v_new
+        
     def solve(self):
         # initialize arrays
         nt, nx, ny = self.nt, self.nx, self.ny
@@ -131,14 +155,14 @@ class Flow2D():
         psi, zeta =  np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
 
 
-        # setup meshgrid for solving laplace equation
-        ell = 2 * np.pi * fft.fftfreq(ny, d=self.dy)
-        kay = 2 * np.pi * fft.rfftfreq(nx, d=self.dx)
-        K, L = np.meshgrid(kay, ell, indexing='xy')
-        K2=(K**2+L**2)
-        
-        # get rid of division by wavenumber zero, set K like this for numerical stability
-        K2[0,0] = (K2[1,0] + K[0,1] + K[1,1])/3
+        # # setup meshgrid for solving laplace equation
+        # ell = 2 * np.pi * fft.fftfreq(ny, d=self.dy)
+        # kay = 2 * np.pi * fft.rfftfreq(nx, d=self.dx)
+        # K, L = np.meshgrid(kay, ell, indexing='xy')
+        # K2=(K**2+L**2)
+        # 
+        # # get rid of division by wavenumber zero, set K like this for numerical stability
+        # K2[0,0] = (K2[1,0] + K[0,1] + K[1,1])/3
         
         # set initial condition
         zeta[0] = self.zeta0
@@ -147,7 +171,7 @@ class Flow2D():
         zeta[0, 1:-1,1:-1] += zeta[0, 1:-1,1:-1] * np.random.uniform(-1, 1, (ny-2, nx-2)) / 50
 
         # compute initial conditon for other variables
-        psi[0] = self.__get_streamfunction(zeta[0], K2=K2)
+        psi[0] = self.__get_streamfunction(zeta[0])
         u[0], v[0] = self.__get_wind(psi[0])
 
         # printout 
@@ -160,7 +184,7 @@ class Flow2D():
 
         for k in range(1, nt):
             zetacurr = self.__update_zeta(zetaprev, uprev, vprev)
-            psicurr = self.__get_streamfunction(zetacurr, K2=K2)
+            psicurr = self.__get_streamfunction(zetacurr)
             ucurr, vcurr = self.__get_wind(psicurr)
 
             # save output
