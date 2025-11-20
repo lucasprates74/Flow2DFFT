@@ -13,7 +13,7 @@ M=np.ceil(u.max().data)
 x, y = ds.x, ds.y
 nframes = len(ds.time.values)
 print(nframes)
-fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 18), constrained_layout=True)
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 12), constrained_layout=True)
 
 c1 = ax1.pcolormesh(x, y, zeta.isel(time=0), cmap="coolwarm", vmin=-M*10, vmax=M*10)
 c2 = ax2.pcolormesh(x, y, u.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
@@ -47,5 +47,4 @@ def __update(frame):
 ani = FuncAnimation(fig=fig, func=__update, frames=range(len(ds.time)), interval=100)
 
 ani.save('animation.mp4')
-plt.show()
 print('done')
