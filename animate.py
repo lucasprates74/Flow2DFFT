@@ -26,7 +26,7 @@ ax3.set_title('Meridional Velocity')
 fig.colorbar(c1, ax=ax1)
 fig.colorbar(c2, ax=ax2)
 fig.colorbar(c3, ax=ax3)
-plt.show()
+# plt.show()
 
 
 def __update(frame):

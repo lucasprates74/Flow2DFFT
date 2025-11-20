@@ -102,15 +102,15 @@ class Flow2D():
         
     def __update_zeta(self, zeta, u, v):
         """
-        Time step zeta accounting for advection and diffusion with operator splitting
+        Time step zeta accounting for advection and diffusion 
         """
         arr = np.array(zeta) # retain the boundary conditions
 
         # advection step
-        arr = zeta - (self.dt/2) * (u * self.__partialx(zeta) + v * self.__partialy(zeta))
+        arr = zeta - self.dt * (u * self.__partialx(zeta) + v * self.__partialy(zeta)) 
         
-        # time-split diffusion step
-        arr += (self.dt/2) * self.kappa * self.__laplacian(zeta)
+        # diffusiion term
+        arr += self.dt * self.kappa * self.__laplacian(zeta)
 
         return arr
     
@@ -207,32 +207,6 @@ class Flow2D():
         return ds
 
 
-
-if __name__=='__main__':
-    Lx = 1 # m
-    Ly = 0.5 # m
-    dx = 0.01 # m 
-    dy = 0.01 # m
-    dt = 1e-3 # s
-    T = 180 # s # 180
-    history_interval = 100 # timestep interval for saving data
-    kappa = 1e-5 # m2/s
-
-    # initialize initial condition arrays
-    nx, ny = int(Lx / dx) + 1, int(Ly / dy) + 1
-    zeta0 = np.zeros((ny, nx))
-
-    # build initial condition corresponding to a zonal jet
-    U0 = 0.2 # m / s
-    Ly = (ny - 1) * dy
-    for j in range(ny):
-        for i in range(nx):
-            zeta0[j,i] = -2* np.pi * U0 / Ly * np.sin(2 *np.pi * j / (ny - 1))
-
-
-    solver = Flow2D(zeta0, dt, dx, dy, T, history_interval, kappa)
-    ds = solver.solve()
-    ds.to_netcdf('new_model_output.nc')
 
 
 

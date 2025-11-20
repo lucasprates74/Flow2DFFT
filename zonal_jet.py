@@ -4,8 +4,8 @@ from Flow2DFFT import Flow2D
 import time 
 
 # setup model parameters
-C = 0.2 # courant number
-kappa = 6e-3 # diffusivity
+C = 0.1 # courant number
+kappa = 3e-3 # diffusivity
 Lx = 1 
 Ly = 0.5 
 dx = 0.01 
