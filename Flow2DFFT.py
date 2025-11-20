@@ -151,18 +151,7 @@ class Flow2D():
         
         nsave = int(nt//history_interval)+1
         t, x, y = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny)
-        u, v = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
-        psi, zeta =  np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
-
-
-        # # setup meshgrid for solving laplace equation
-        # ell = 2 * np.pi * fft.fftfreq(ny, d=self.dy)
-        # kay = 2 * np.pi * fft.rfftfreq(nx, d=self.dx)
-        # K, L = np.meshgrid(kay, ell, indexing='xy')
-        # K2=(K**2+L**2)
-        # 
-        # # get rid of division by wavenumber zero, set K like this for numerical stability
-        # K2[0,0] = (K2[1,0] + K[0,1] + K[1,1])/3
+        u, v, zeta = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
         
         # set initial condition
         zeta[0] = self.zeta0
@@ -171,8 +160,8 @@ class Flow2D():
         zeta[0, 1:-1,1:-1] += zeta[0, 1:-1,1:-1] * np.random.uniform(-1, 1, (ny-2, nx-2)) / 50
 
         # compute initial conditon for other variables
-        psi[0] = self.__get_streamfunction(zeta[0])
-        u[0], v[0] = self.__get_wind(psi[0])
+        psi = self.__get_streamfunction(zeta[0])
+        u[0], v[0] = self.__get_wind(psi)
 
         # printout 
         print('nstep = ', 0, 
@@ -183,9 +172,8 @@ class Flow2D():
         uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
 
         for k in range(1, nt):
-            zetacurr = self.__update_zeta(zetaprev, uprev, vprev)
-            psicurr = self.__get_streamfunction(zetacurr)
-            ucurr, vcurr = self.__get_wind(psicurr)
+            # do the time step
+            zetacurr, ucurr, vcurr = self.__update(zetaprev, uprev, vprev)
 
             # save output
             if k % history_interval == 0:
@@ -195,7 +183,6 @@ class Flow2D():
                       ',     max divergence = ', self.__divergence(ucurr, vcurr))
                 index = int(k//history_interval)
                 zeta[index] = zetacurr
-                psi[index] = psicurr
                 u[index] = ucurr
                 v[index] = vcurr
 
@@ -209,8 +196,7 @@ class Flow2D():
         ds = xr.Dataset(data_vars={
                                     'u':(['time', 'y', 'x'], u),
                                     'v':(['time', 'y', 'x'], v),
-                                    'vorticity':(['time', 'y', 'x'], zeta),
-                                    'sf':(['time', 'y', 'x'], psi)
+                                    'vorticity':(['time', 'y', 'x'], zeta)
                                 },
                         coords={
                                 'time':('time', t),
