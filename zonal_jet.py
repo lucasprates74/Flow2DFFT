@@ -5,7 +5,7 @@ import time
 
 # setup model parameters
 C = 0.1 # courant number
-mu = 3e-3 # diffusivity scale
+Re = 2000 # reynolds number
 Lx = 1 
 Ly = 0.5 
 dx = 0.01 
@@ -20,7 +20,7 @@ zeta0 = np.zeros((ny, nx))
 
 
 U0 = C * dx / dt #0.2 # scale velocity
-kappa = mu * dx ** 2 / dt # diffusivity
+kappa = U0 * Ly / Re # diffusivity
 print(U0, kappa)
 
 # build initial condition corresponding to a zonal jet
