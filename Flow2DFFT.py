@@ -156,9 +156,6 @@ class Flow2D():
         # set initial condition
         zeta[0] = self.zeta0
 
-        # add small random noise to the interior, scaled by local zeta
-        zeta[0, 1:-1,1:-1] += zeta[0, 1:-1,1:-1] * np.random.uniform(-1, 1, (ny-2, nx-2)) / 50
-
         # compute initial conditon for other variables
         psi = self.__get_streamfunction(zeta[0])
         u[0], v[0] = self.__get_wind(psi)

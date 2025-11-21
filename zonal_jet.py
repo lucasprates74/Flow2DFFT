@@ -28,6 +28,10 @@ for j in range(ny):
     for i in range(nx):
         zeta0[j,i] = -2* np.pi * U0 / Ly * np.sin(2 *np.pi * j / (ny - 1))
 
+# add small noise to initial condition, causes baroclinic instability faster
+noise_scale = 0.02
+rng = np.random.default_rng(0) # seed so output is reproducible
+zeta0 += noise_scale * zeta0 * rng.uniform(-1, 1, (ny, nx)) 
 
 # solve
 solver = Flow2D(zeta0, dt, dx, dy, T, history_interval, kappa)
