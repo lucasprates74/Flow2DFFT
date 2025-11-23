@@ -12,6 +12,7 @@ zeta = ds.vorticity
 ua = ds.u_ens.sel(ensemble_id=0)#.mean('ensemble_id')
 va = ds.v_ens.sel(ensemble_id=0)#.mean('ensemble_id')
 zetaa = ds.vorticity_ens.sel(ensemble_id=0)#.mean('ensemble_id')
+print(ds.vorticity_var.isel(time=1)-ds.vorticity_var.isel(time=0))
 zeta_var = ds.vorticity_var/ds.vorticity_var.max(('x','y')) # normalize
 obsmask = ds.obsmask
 

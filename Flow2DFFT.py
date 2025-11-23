@@ -279,7 +279,7 @@ class Flow2D():
             # evolve the true state
             zetacurr, ucurr, vcurr = self.__update(zetaprev, uprev, vprev)
 
-            # evolve the forecaset
+            # evolve the forecast
             zetaf, uf, vf = self.__update(zetaa, ua, va)
 
             if (k-obsstart) % tobs == 0: 
@@ -348,7 +348,7 @@ class Flow2D():
                 vens[index] = va
 
                 # get variance
-                zeta_var[index] = np.reshape(np.diag(bb), (ny, nx))
+                zeta_var[index] = np.reshape(np.diag(pa), (ny, nx))
 
                 start = time.time()
             # deep copy curr data to be the next previous data
