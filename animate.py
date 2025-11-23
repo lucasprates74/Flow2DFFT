@@ -42,7 +42,7 @@ def __update(frame):
     c2 = ax2.pcolormesh(x, y, u.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
     c3 = ax3.pcolormesh(x, y, v.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
 
-    return [c1, c2, c3, c3]
+    return [c1, c2, c3]
 
 ani = FuncAnimation(fig=fig, func=__update, frames=range(len(ds.time)), interval=100)
 
