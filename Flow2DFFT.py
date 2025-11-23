@@ -219,14 +219,17 @@ class Flow2D():
         # print(np.sum(hh))
         return hh
     
-    def enkf(self, nens, bscale, rscale, tobs, obsmask, obsstart=0):
+    def enkf(self, nens, bscale, rscale, tobs, obsmask, obsstart=0, ens_to_save=[0]):
         # maybe add a freerunning forecast to compare to
 
         # initialize arrays
         nt, nx, ny = self.nt, self.nx, self.ny
         history_interval = self.history_interval
         
-        nsave = int(nt//history_interval)+1
+        nsave = int(nt//history_interval)+1 # number of time steps to save
+        nens_to_save = len(ens_to_save) # number of ensemble members to save
+        ensemble_id = np.array(ens_to_save)
+
         t, x, y = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny)
 
         # setup truth arrays
@@ -240,25 +243,24 @@ class Flow2D():
         u[0], v[0] = self.__get_wind(psi)
 
         # setup ensemble forecast arrays
-        uens, vens, zetaens = np.zeros((nsave, nens, ny, nx)), np.zeros((nsave, nens, ny, nx)), np.zeros((nsave, nens, ny, nx))
+        uens, vens, zetaens = np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx))
         
         # setup array to store variance 
         zeta_var = np.zeros((nsave, ny, nx))
 
         # set ensemble forecast initial condition 
-        zetaens[0] = np.random.normal(loc=self.zeta0, scale=bscale * np.where(np.abs(self.zeta0)>1,np.abs(self.zeta0),1), size=(nens,ny,nx))
-        # scale should not be allowed to be zero
+        zetaa = np.random.normal(loc=self.zeta0, scale=bscale * np.where(np.abs(self.zeta0)>1,np.abs(self.zeta0),1), size=(nens,ny,nx))
 
         # background error covariance matrix
-        xf = np.reshape(zetaens[0], (nens, ny*nx))
+        xf = np.reshape(zetaa, (nens, ny*nx))
         xfc = xf-np.mean(xf, axis=0)
         bb = xfc.T @ xfc / xfc.shape[0]
         zeta_var[0] = np.reshape(np.diag(bb), (ny, nx))
 
         
         # compute initial conditon for other variables
-        psiens = self.__get_streamfunction(zetaens[0])
-        uens[0], vens[0] = self.__get_wind(psiens)
+        psia = self.__get_streamfunction(zetaa)
+        ua, va = self.__get_wind(psia)
         
         # setup observing network
         hh = self.__forward_model(obsmask)
@@ -271,8 +273,8 @@ class Flow2D():
         # deep copy initial conditions
         uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
 
-        # deep copy initial conditions
-        ua, va, zetaa = np.array(uens[0]), np.array(vens[0]), np.array(zetaens[0])
+        # save ics for ensemble members we want to save
+        uens[0], vens[0], zetaens[0] = np.array(ua[ens_to_save,:,:]), np.array(va[ens_to_save,:,:]), np.array(zetaa[ens_to_save,:,:])
 
         start = time.time()
         for k in range(1, nt):
@@ -343,9 +345,9 @@ class Flow2D():
                 zeta[index] = zetacurr
                 u[index] = ucurr
                 v[index] = vcurr
-                zetaens[index] = zetaa
-                uens[index] = ua
-                vens[index] = va
+                zetaens[index] = zetaa[ens_to_save,:,:]
+                uens[index] = ua[ens_to_save,:,:]
+                vens[index] = va[ens_to_save,:,:]
 
                 # get variance
                 zeta_var[index] = np.reshape(np.diag(pa), (ny, nx))
@@ -369,7 +371,7 @@ class Flow2D():
                                 },
                         coords={
                                 'time':('time', t),
-                                'ensemble_id':('ensemble_id', np.arange(nens)),
+                                'ensemble_id':('ensemble_id', ensemble_id),
                                 'x':('x', x),
                                 'y':('y', y)
                             })
