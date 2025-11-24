@@ -248,7 +248,7 @@ class Flow2D():
         nsave = int(nt//history_interval)+1 # number of time steps to save
         nens_to_save = len(ens_to_save) # number of ensemble members to save
 
- 
+        
         # initialize arrays to save
         t, x, y, ensemble_id = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny),  np.array(ens_to_save)
 
@@ -260,7 +260,7 @@ class Flow2D():
 
         # setup arrays for forecast means 
         umean, vmean, zetamean = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
-
+        
         # setup array to store ensemble variance 
         zeta_var = np.zeros((nsave, ny, nx))
 
@@ -302,6 +302,7 @@ class Flow2D():
 
         # copy ics to 2D arrays for integration
         uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
+
         # main loop
         start = time.time()
         for k in range(1, nt + 1):
@@ -325,7 +326,7 @@ class Flow2D():
                 
                 # setup observation errors
                 nu = np.random.normal(loc=0, scale=rscale * np.where(np.abs(xo)>1,np.abs(xo),1), size=(nens,hh.shape[0]))
-                nu -= np.mean(nu, axis=0) # nu should not be allowed to be 0
+                nu -= np.mean(nu, axis=0) # nu should be unbiased
                 xo += nu
                 rr = nu.T @ nu / nu.shape[0]
 
@@ -383,7 +384,7 @@ class Flow2D():
                 zeta_var[index] = np.reshape(np.diag(pa), (ny, nx))
 
                 # compute and save means
-                zetamean[index], ua[index], va[index] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
+                zetamean[index], umean[index], vmean[index] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
 
             # deep copy curr data to be the next previous data
             uprev, vprev, zetaprev = np.array(ucurr), np.array(vcurr), np.array(zetacurr)
