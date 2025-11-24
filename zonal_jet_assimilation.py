@@ -29,16 +29,25 @@ print(U0, kappa)
 zeta0 = U0 * zeta0
 
 # setup observation mask 
-obsmask = np.zeros_like(zeta0, dtype=np.int64)
-# obsmask[:,0:5]=1
-obsmask[::10,::10]=1
 
 # solve
 solver = Flow2D(zeta0, dt, dx, dy, T, history_interval, kappa)
 
 start = time.time()
 # ds = solver.enkf(nens=100,bscale=0.25, rscale=0.001, tobs=10000000, obsmask=obsmask)
-ds = solver.enkf(nens=100, bscale=0.25, rscale=0.001, tobs=500, obsmask=obsmask)
+nens=100
+bscale=0.25
+rscale=0.1#0.001
+tobs=1000
+o = 1
+
+obsmask = np.zeros_like(zeta0, dtype=np.int64)
+if o == 1:
+    obsmask[::10,::10]=1
+elif o ==2:
+    obsmask[:,0:5]=1
+
+ds = solver.enkf(nens=nens, bscale=bscale, rscale=rscale, tobs=tobs, obsmask=obsmask)
 end = time.time()
 print('Seconds Elapsed:', end - start)
-ds.to_netcdf('nc_files/ensemble_output.nc')
+ds.to_netcdf(f'nc_files/ensemble_output_n{nens}_b{bscale}_r{rscale}_t{tobs}_o{o}.nc')
