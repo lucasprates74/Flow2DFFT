@@ -7,7 +7,7 @@ import time
 C = 0.1 # courant number
 Re = 2000 # reynolds number
 dt = 1e-4 
-T = 1 
+T = 1
 history_interval = 100 # timestep interval for saving data
 
 # load initial condition with initial velocity zero

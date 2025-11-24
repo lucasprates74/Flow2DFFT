@@ -44,12 +44,12 @@ class Flow2D():
         
         # grid configuration
         self.T = T
-        self.nt = int(self.T // self.dt)
+        self.nt = int(self.T // self.dt) + 1
         self.nx = np.shape(zeta0)[1]
         self.ny = np.shape(zeta0)[0]
         self.Lx = self.dx * (self.nx - 1)
         self.Ly = self.dy * (self.ny - 1)
-
+        print(self.nt)
         # history interval
         self.history_interval = history_interval
 
@@ -143,18 +143,24 @@ class Flow2D():
             return zeta_new, u_new, v_new
         
     def solve(self):
-        # initialize arrays
+        """
+        Integrate the 2D barotropic flow equations
+        """
+
+        # rename vars
         nt, nx, ny = self.nt, self.nx, self.ny
         history_interval = self.history_interval
-        
-        nsave = int(nt//history_interval)+1
+        nsave = int(nt//history_interval)+1 # number of timesteps to save
+        print(nt//history_interval, nsave)
+
+        # initialize arrays to save
         t, x, y = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny)
         u, v, zeta = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
         
-        # set initial condition
+        # set initial condition for voriticity
         zeta[0] = self.zeta0
 
-        # compute initial conditon for other variables
+        # compute and set initial state for winds
         psi = self.__get_streamfunction(zeta[0])
         u[0], v[0] = self.__get_wind(psi)
 
@@ -163,31 +169,34 @@ class Flow2D():
               ',     total energy = ', self.__total_energy(u[0], v[0]),
               ',     max divergence = ', self.__divergence(u[0], v[0]))
         
-        # deep copy initial conditions
+        # copy ics to 2D arrays for integration
         uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
 
-        for k in range(1, nt):
-            # do the time step
+        # main loop
+        start = time.time()
+        for k in range(1, nt + 1):
+            # integrate one time step
             zetacurr, ucurr, vcurr = self.__update(zetaprev, uprev, vprev)
 
             # save output
             if k % history_interval == 0:
                 # printout
+                end = time.time()
                 print('nstep = ', k, 
                       ',     total energy = ', self.__total_energy(ucurr, vcurr),
-                      ',     max divergence = ', self.__divergence(ucurr, vcurr))
+                      ',     max divergence = ', self.__divergence(ucurr, vcurr),
+                      ',     seconds elapsed = ', end - start)
                 index = int(k//history_interval)
                 zeta[index] = zetacurr
                 u[index] = ucurr
                 v[index] = vcurr
+                start = time.time()
 
-            # deep copy curr data to be the next previous data
+            # copy current state to be the next previous state
             uprev, vprev, zetaprev = np.array(ucurr), np.array(vcurr), np.array(zetacurr)
             
-            
 
-
-        
+        # dataset to output
         ds = xr.Dataset(data_vars={
                                     'u':(['time', 'y', 'x'], u),
                                     'v':(['time', 'y', 'x'], v),
@@ -198,11 +207,13 @@ class Flow2D():
                                 'x':('x', x),
                                 'y':('y', y)
                             })
-    
+
         return ds
     
     def __forward_model(self, obsmask):
-        # try 
+        """
+        Given an observation mask, obsmask, generate the linear forward model with dimensions nobs by ny*nx
+        """
         nobs = np.sum(obsmask)
         hh = np.zeros((nobs, self.ny * self.nx))
         obsmask_flat = np.reshape(obsmask, (self.ny*self.nx))
@@ -213,79 +224,95 @@ class Flow2D():
                 hh[j,i] = 1
                 j += 1
                 
-        # old
-        # hh = np.zeros((self.ny * self.nx, self.ny * self.nx))
-        # np.fill_diagonal(hh, np.reshape(obsmask, (self.ny*self.nx)))
-        # print(np.sum(hh))
         return hh
     
     def enkf(self, nens, bscale, rscale, tobs, obsmask, obsstart=0, ens_to_save=[0]):
+        """
+        Integrate the 2D barotropic flow equations with data assimilation using an 
+        Ensemble Kalman Filter
+            - nens: number of ensemble members
+            - bscale: ensemble of initial conditions calculated using a normal ditribution at 
+                      each gridcell, centered on the zeta0, with spread bscale * |zeta0|
+            - rscale: ensemble of measurements calculated using a normal ditribution at 
+                      each gridcell, centered on the zeta0, with spread rscale * |zeta0|
+            - tobs: interval between observations, in number of time steps. For tobs == -1, forecast is freerunning
+            - obsmask: mask indicating which gridcells are observed
+            - obsstart: the timestep of the first observation. If 0, obs start at obsstart=tobs
+            - ens_to_save: list of ensemble members to save
+        """
         # maybe add a freerunning forecast to compare to
 
-        # initialize arrays
+        # rename vars
         nt, nx, ny = self.nt, self.nx, self.ny
         history_interval = self.history_interval
-        
         nsave = int(nt//history_interval)+1 # number of time steps to save
         nens_to_save = len(ens_to_save) # number of ensemble members to save
-        ensemble_id = np.array(ens_to_save)
 
-        t, x, y = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny)
+ 
+        # initialize arrays to save
+        t, x, y, ensemble_id = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny),  np.array(ens_to_save)
 
         # setup truth arrays
         u, v, zeta = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
         
-        # set initial condition
+        # setup ensemble forecast arrays
+        uens, vens, zetaens = np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx))
+
+        # setup arrays for forecast means 
+        umean, vmean, zetamean = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
+
+        # setup array to store ensemble variance 
+        zeta_var = np.zeros((nsave, ny, nx))
+
+        # set initial condition for true vorticity
         zeta[0] = self.zeta0
 
-        # compute initial conditon for other variables
+        # compute initial conditon for true winds
         psi = self.__get_streamfunction(zeta[0])
         u[0], v[0] = self.__get_wind(psi)
 
-        # setup ensemble forecast arrays
-        uens, vens, zetaens = np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx))
-        
-        # setup array to store variance 
-        zeta_var = np.zeros((nsave, ny, nx))
-
-        # set ensemble forecast initial condition 
+        # save ensemble forecast initial condition 
         zetaa = np.random.normal(loc=self.zeta0, scale=bscale * np.where(np.abs(self.zeta0)>1,np.abs(self.zeta0),1), size=(nens,ny,nx))
 
-        # background error covariance matrix
+        # flatten forecasts to compute background error covariance matrix
         xf = np.reshape(zetaa, (nens, ny*nx))
         xfc = xf-np.mean(xf, axis=0)
         bb = xfc.T @ xfc / xfc.shape[0]
-        zeta_var[0] = np.reshape(np.diag(bb), (ny, nx))
-
+        zeta_var[0] = np.reshape(np.diag(bb), (ny, nx)) # save in initial variance
         
-        # compute initial conditon for other variables
+        # compute initial conditon for forecast winds
         psia = self.__get_streamfunction(zetaa)
         ua, va = self.__get_wind(psia)
         
         # setup observing network
         hh = self.__forward_model(obsmask)
+
         # printout 
         print('nstep = ', 0, 
               ',     total energy = ', self.__total_energy(u[0], v[0]),
               ',     max divergence = ', self.__divergence(u[0], v[0]),
               ',     rms = ', np.sqrt(np.trace(bb)))
         
-        # deep copy initial conditions
-        uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
 
         # save ics for ensemble members we want to save
         uens[0], vens[0], zetaens[0] = np.array(ua[ens_to_save,:,:]), np.array(va[ens_to_save,:,:]), np.array(zetaa[ens_to_save,:,:])
+        
+        # save ics for means 
+        umean[0], vmean[0], zetamean[0] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
 
+        # copy ics to 2D arrays for integration
+        uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
+        # main loop
         start = time.time()
-        for k in range(1, nt):
+        for k in range(1, nt + 1):
             # evolve the true state
             zetacurr, ucurr, vcurr = self.__update(zetaprev, uprev, vprev)
 
             # evolve the forecast
             zetaf, uf, vf = self.__update(zetaa, ua, va)
 
-            if (k-obsstart) % tobs == 0: 
-                # vectorize truth and forecast
+            if (tobs != -1) and (k-obsstart) % tobs == 0: 
+                # flatten truth and forecast into a vector
                 xt = np.reshape(zetacurr, (ny*nx))
                 xf = np.reshape(zetaf, (nens, ny*nx))
                 
@@ -293,17 +320,17 @@ class Flow2D():
                 xfc = xf-np.mean(xf, axis=0)
                 bb = xfc.T @ xfc / xfc.shape[0]
 
-                # setup observations
+                # setup observations array
                 xo = np.resize((hh @ xt.T).T, (nens, hh.shape[0]))
-                # print(np.max(np.abs(xo)))
+                
                 # setup observation errors
-                # nu = rscale * max(np.abs(xo), 1) * np.random.uniform(-1, 1, (nens, hh.shape[0])) 
                 nu = np.random.normal(loc=0, scale=rscale * np.where(np.abs(xo)>1,np.abs(xo),1), size=(nens,hh.shape[0]))
                 nu -= np.mean(nu, axis=0) # nu should not be allowed to be 0
                 xo += nu
                 rr = nu.T @ nu / nu.shape[0]
 
-                print('assimilating obs . . . rms of obs =', np.sqrt(np.trace(rr)))
+                print('nstep = ', k, ',     assimilating obs . . . rms of obs =', np.sqrt(np.trace(rr)))
+                
                 # get kalman gain 
                 rhs = bb @ hh.T
                 
@@ -324,7 +351,7 @@ class Flow2D():
                 # update fields
                 xa = np.reshape(zetaf, (nens, ny*nx))
                 zetaa = np.array(zetaf)
-                ua= np.array(uf)
+                ua = np.array(uf)
                 va = np.array(vf)
 
             # save output
@@ -333,14 +360,17 @@ class Flow2D():
                 # compute new covariance for trace
                 xac = xa-np.mean(xa, axis=0)
                 pa = xac.T @ xac / xac.shape[0]
-
-                end = time.time()
+                
                 # printout
+                end = time.time()
                 print('nstep = ', k, 
                       ',     total energy = ', self.__total_energy(ucurr, vcurr),
                       ',     max divergence = ', self.__divergence(ucurr, vcurr),
                       ',     rms = ', np.sqrt(np.trace(pa)),
                       ',     seconds elapsed = ', end - start)
+                start = time.time()
+                
+                # save data
                 index = int(k//history_interval)
                 zeta[index] = zetacurr
                 u[index] = ucurr
@@ -349,16 +379,18 @@ class Flow2D():
                 uens[index] = ua[ens_to_save,:,:]
                 vens[index] = va[ens_to_save,:,:]
 
-                # get variance
+                # compute and save variance
                 zeta_var[index] = np.reshape(np.diag(pa), (ny, nx))
 
-                start = time.time()
+                # compute and save means
+                zetamean[index], ua[index], va[index] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
+
             # deep copy curr data to be the next previous data
             uprev, vprev, zetaprev = np.array(ucurr), np.array(vcurr), np.array(zetacurr)
             
             
 
-        
+        # save data
         ds = xr.Dataset(data_vars={
                                     'u':(['time', 'y', 'x'], u),
                                     'v':(['time', 'y', 'x'], v),
@@ -366,6 +398,9 @@ class Flow2D():
                                     'u_ens':(['time', 'ensemble_id', 'y', 'x'], uens),
                                     'v_ens':(['time', 'ensemble_id', 'y', 'x'], vens),
                                     'vorticity_ens':(['time', 'ensemble_id', 'y', 'x'], zetaens),
+                                    'u_mean':(['time', 'y', 'x'], u),
+                                    'v_mean':(['time', 'y', 'x'], v),
+                                    'vorticity_mean':(['time', 'y', 'x'], zeta),
                                     'vorticity_var':(['time', 'y', 'x'], zeta_var),
                                     'obsmask':(['y', 'x'], obsmask)
                                 },
