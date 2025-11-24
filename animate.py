@@ -3,19 +3,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-ds = xr.open_dataset('nc_files/new_model_output.nc')
+ds = xr.open_dataset('nc_files/zonal_jet_output.nc')
 u = ds.u
 v = ds.v
 zeta = ds.vorticity
 step=10
+MZ=np.ceil(zeta.max().data)
 M=np.ceil(u.max().data)
+
 
 x, y = ds.x, ds.y
 nframes = len(ds.time.values)
 print(nframes)
 fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 12), constrained_layout=True)
 
-c1 = ax1.pcolormesh(x, y, zeta.isel(time=0), cmap="coolwarm", vmin=-M*10, vmax=M*10)
+c1 = ax1.pcolormesh(x, y, zeta.isel(time=0), cmap="coolwarm", vmin=-MZ, vmax=MZ)
 c2 = ax2.pcolormesh(x, y, u.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
 c3 = ax3.pcolormesh(x, y, v.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
 
@@ -39,7 +41,7 @@ def __update(frame):
     c3.remove()
     
     # Draw the new frame
-    c1 = ax1.pcolormesh(x, y, zeta.isel(time=frame), cmap="coolwarm", vmin=-M*10, vmax=M*10)
+    c1 = ax1.pcolormesh(x, y, zeta.isel(time=frame), cmap="coolwarm", vmin=-MZ, vmax=MZ)
     c2 = ax2.pcolormesh(x, y, u.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
     c3 = ax3.pcolormesh(x, y, v.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
 

@@ -5,11 +5,11 @@ import time
 
 # setup time step
 C = 0.1 # courant number
-Re = 2000 # reynolds number
+Re = 9500#2200 # reynolds number
 dt = 1e-4 
 T = 1
 history_interval = 100 # timestep interval for saving data
-
+N = 10
 # load initial condition with initial velocity zero
 ds_in = xr.open_dataset('nc_files/zonal_jet_ic.nc')
 zeta0 = ds_in.vorticity
@@ -21,15 +21,18 @@ dx = ds_in.dx.data
 dy = ds_in.dy.data
 
 # setup initial velocity 
-U0 = C * dx / dt # scale velocity
-kappa = U0 * Ly / Re # diffusivity
+U = C * dx / dt  # max velocity
+U0 = 0.5 * U     # scale velocity
+ubgd = 0.5 * U   # background u
+vbgd = 0         # background v
+kappa = U * Ly / Re # U * Ly / Re # diffusivity
 print(U0, kappa)
 
 # rescale voriticity in terms of scale velocity
 zeta0 = U0 * zeta0
 
 # integrate the equations of motion
-solver = Flow2D(zeta0, dt, dx, dy, T, history_interval, kappa)
+solver = Flow2D(zeta0, ubgd, vbgd, dt, dx, dy, T, history_interval, kappa)
 
 start = time.time()
 ds = solver.solve()

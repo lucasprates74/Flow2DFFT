@@ -5,15 +5,14 @@ from matplotlib.animation import FuncAnimation
 
 nens=100
 bscale = 0.25
-rscale = 0.1
-tobs = 500
-o = 1
+rscale = 1.0
+tobs = 1000
+o = 2
 
 ds = xr.open_dataset(f'nc_files/ensemble_output_n{nens}_b{bscale}_r{rscale}_t{tobs}_o{o}.nc')
 u = ds.u
 v = ds.v
 zeta = ds.vorticity
-# obsmask = ds.obsmask
 
 ua = ds.u_ens.sel(ensemble_id=0)#.mean('ensemble_id')
 va = ds.v_ens.sel(ensemble_id=0)#.mean('ensemble_id')

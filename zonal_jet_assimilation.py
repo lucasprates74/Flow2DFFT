@@ -28,25 +28,29 @@ print(U0, kappa)
 # rescale voriticity in terms of scale velocity
 zeta0 = U0 * zeta0
 
-# setup observation mask 
-
-# solve
+# get solver
 solver = Flow2D(zeta0, dt, dx, dy, T, history_interval, kappa)
 
-start = time.time()
-# ds = solver.enkf(nens=100,bscale=0.25, rscale=0.001, tobs=10000000, obsmask=obsmask)
+# enkf parameters
 nens=100
 bscale=0.25
-rscale=0.1#0.001
-tobs=1000
-o = 1
+rscale=1.00
+tobs=1000#500
+o = 2
 
+# setup observation mask 
 obsmask = np.zeros_like(zeta0, dtype=np.int64)
+ny, nx = obsmask.shape
 if o == 1:
     obsmask[::10,::10]=1
-elif o ==2:
-    obsmask[:,0:5]=1
+elif o == 2:
+    obsmask[::10,0:int(nx//2):10]=1
+elif o == 3:
+    obsmask[:,0:2]=1
 
+print('nobs =', np.sum(obsmask))
+
+start = time.time()
 ds = solver.enkf(nens=nens, bscale=bscale, rscale=rscale, tobs=tobs, obsmask=obsmask)
 end = time.time()
 print('Seconds Elapsed:', end - start)

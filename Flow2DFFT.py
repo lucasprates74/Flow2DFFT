@@ -23,9 +23,10 @@ class Flow2D():
 
         return K2
 
-    def __init__(self, zeta0, dt, dx, dy, T, history_interval, kappa):
+    def __init__(self, zeta0, ubgd, vbgd, dt, dx, dy, T, history_interval, kappa):
         """
         - zeta0 is the doubly periodic vorticity initial condition
+        - ubgd and vbgd are the constant background winds
         - dt is the time-step in seconds
         - dx is the resolution in the x direction in meters
         - dy is the resolution in the y direction in meters
@@ -36,7 +37,9 @@ class Flow2D():
 
         # initial condition 
         self.zeta0 = zeta0
-
+        self.ubgd = ubgd 
+        self.vbgd = vbgd
+        
         # resolution 
         self.dt = dt
         self.dx = dx
@@ -132,8 +135,8 @@ class Flow2D():
         """
         Get wind components from the streamfunction
         """
-        u = - self.__partialy(psi)
-        v = self.__partialx(psi)
+        u = self.ubgd - self.__partialy(psi)
+        v = self.vbgd + self.__partialx(psi)
         return u, v
     
     def __update(self, zeta, u, v):
@@ -212,7 +215,9 @@ class Flow2D():
     
     def __forward_model(self, obsmask):
         """
-        Given an observation mask, obsmask, generate the linear forward model with dimensions nobs by ny*nx
+        Given an observation mask, obsmask, generate the linear forward model with dimensions nobs by ny*nx.
+        Obsmask should be given as ny by nx grid with 0 and 1. When obsmask is flattened, if the ith gridcell 
+        contains a 1, that gives the jth observation.
         """
         nobs = np.sum(obsmask)
         hh = np.zeros((nobs, self.ny * self.nx))
@@ -329,13 +334,16 @@ class Flow2D():
                 nu -= np.mean(nu, axis=0) # nu should be unbiased
                 xo += nu
                 rr = nu.T @ nu / nu.shape[0]
+                
+                # background covariance projected into rspace
+                hbhT = hh @ bb @ hh.T
+                print('nstep = ', k, 
+                      ',     assimilating obs . . . rms of obs =', np.sqrt(np.trace(rr)), 
+                      ',     rms of model at obs =', np.sqrt(np.trace(hbhT)))
 
-                print('nstep = ', k, ',     assimilating obs . . . rms of obs =', np.sqrt(np.trace(rr)))
-                
                 # get kalman gain 
+                ss = hbhT + rr
                 rhs = bb @ hh.T
-                
-                ss = hh @ bb @ hh.T + rr
                 kk = np.linalg.solve(ss.T, rhs.T).T
 
                 # do analysis 

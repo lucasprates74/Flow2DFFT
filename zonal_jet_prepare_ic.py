@@ -5,10 +5,11 @@ import time
 
 # setup model parameters
 Lx = 1 
-Ly = 0.5 
+Ly = 1#0.5 
 dx = 0.01 
 dy = 0.01 
 dt = 1e-4 
+N = 10 # number of jets
 
 # initialize initial condition arrays
 nx, ny = int(Lx / dx) + 1, int(Ly / dy) + 1
@@ -20,7 +21,7 @@ U0 = 1 # scale velocity
 # build initial condition corresponding to a zonal jet with initial velocity U0 = 1 
 for j in range(ny):
     for i in range(nx):
-        zeta0[j,i] = -2* np.pi * U0 / Ly * np.sin(2 *np.pi * j / (ny - 1))
+        zeta0[j,i] = -2 * np.pi * N * U0 / Ly * np.sin(2 *np.pi * N * j / (ny - 1))
 
 # add small noise to initial condition, causes barotropic instability faster
 noise_scale = 0.02
