@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-ds = xr.open_dataset('new_model_output.nc')
+ds = xr.open_dataset('nc_files/new_model_output.nc')
 u = ds.u
 v = ds.v
 zeta = ds.vorticity
@@ -30,8 +30,9 @@ fig.colorbar(c3, ax=ax3)
 
 
 def __update(frame):
-    global c1, c2, c3
+    global c1, c2, c3, nframes
 
+    print(f'frame {frame}/{nframes}')
     # Remove the data
     c1.remove()
     c2.remove()
@@ -46,5 +47,5 @@ def __update(frame):
 
 ani = FuncAnimation(fig=fig, func=__update, frames=range(len(ds.time)), interval=100)
 
-ani.save('animation.mp4')
+ani.save('animations/animation_truth.mp4')
 print('done')

@@ -3,47 +3,42 @@ import xarray as xr
 from Flow2DFFT import Flow2D
 import time 
 
-# setup model parameters
+# setup time step
 C = 0.1 # courant number
 Re = 2000 # reynolds number
-Lx = 1 
-Ly = 0.5 
-dx = 0.01 
-dy = 0.01 
 dt = 1e-4 
-T = 1
+T = 1 
 history_interval = 100 # timestep interval for saving data
 
-# initialize initial condition arrays
-nx, ny = int(Lx / dx) + 1, int(Ly / dy) + 1
-zeta0 = np.zeros((ny, nx))
+# load initial condition with initial velocity zero
+ds_in = xr.open_dataset('nc_files/zonal_jet_ic.nc')
+zeta0 = ds_in.vorticity
 
+# load grid parameters
+Lx = ds_in.Lx.data
+Ly = ds_in.Ly.data
+dx = ds_in.dx.data 
+dy = ds_in.dy.data
 
-U0 = C * dx / dt #0.2 # scale velocity
+# setup initial velocity 
+U0 = C * dx / dt # scale velocity
 kappa = U0 * Ly / Re # diffusivity
 print(U0, kappa)
 
-# build initial condition corresponding to a zonal jet
-for j in range(ny):
-    for i in range(nx):
-        zeta0[j,i] = -2* np.pi * U0 / Ly * np.sin(2 *np.pi * j / (ny - 1))
+# rescale voriticity in terms of scale velocity
+zeta0 = U0 * zeta0
 
-# add small noise to initial condition, causes baroclinic instability faster
-noise_scale = 0.02
-rng = np.random.default_rng(0) # seed so output is reproducible
-zeta0 += noise_scale * zeta0 * rng.uniform(-1, 1, (ny, nx)) 
+# setup observation mask 
+obsmask = np.zeros_like(zeta0, dtype=np.int64)
+# obsmask[:,0:5]=1
+obsmask[::10,::10]=1
 
 # solve
 solver = Flow2D(zeta0, dt, dx, dy, T, history_interval, kappa)
 
 start = time.time()
-# ds = solver.solve()
-obsmask = np.zeros((ny, nx), dtype=np.int64)
-# obsmask[:,0:5]=1
-obsmask[::10,::10]=1
-print(obsmask)
 # ds = solver.enkf(nens=100,bscale=0.25, rscale=0.001, tobs=10000000, obsmask=obsmask)
-ds = solver.enkf(nens=100,bscale=0.25, rscale=0.001, tobs=500, obsmask=obsmask)
+ds = solver.enkf(nens=100, bscale=0.25, rscale=0.001, tobs=500, obsmask=obsmask)
 end = time.time()
 print('Seconds Elapsed:', end - start)
-ds.to_netcdf('ensemble_output.nc')
+ds.to_netcdf('nc_files/ensemble_output.nc')

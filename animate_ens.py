@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-ds = xr.open_dataset('ensemble_output.nc')
+ds = xr.open_dataset('nc_files/ensemble_output.nc')
 u = ds.u
 v = ds.v
 zeta = ds.vorticity
@@ -90,5 +90,5 @@ def __update(frame):
 
 ani = FuncAnimation(fig=fig, func=__update, frames=range(len(ds.time)), interval=100)
 
-ani.save('animation.mp4')
+ani.save('animations/animation_enkf.mp4')
 print('done')
