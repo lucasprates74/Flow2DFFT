@@ -5,11 +5,11 @@ import time
 
 # setup time step
 C = 0.1 # courant number
-Re = 9500#2200 # reynolds number
-dt = 1e-4 
+Re = 4000#2200 # reynolds number
+dt = 2e-4#1e-4 
 T = 1
-history_interval = 100 # timestep interval for saving data
-N = 10
+history_interval = 50 # timestep interval for saving data
+
 # load initial condition with initial velocity zero
 ds_in = xr.open_dataset('nc_files/zonal_jet_ic.nc')
 zeta0 = ds_in.vorticity
@@ -35,7 +35,7 @@ zeta0 = U0 * zeta0
 solver = Flow2D(zeta0, ubgd, vbgd, dt, dx, dy, T, history_interval, kappa)
 
 start = time.time()
-ds = solver.solve()
+ds = solver.solve(noise_scale=1)
 end = time.time()
 print('Seconds Elapsed:', end - start)
 ds.to_netcdf('nc_files/zonal_jet_output.nc')

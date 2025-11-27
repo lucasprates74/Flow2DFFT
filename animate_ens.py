@@ -4,12 +4,19 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 nens=100
-bscale = 0.25
-rscale = 1.0
-tobs = 1000
-o = 2
+bscale = 1
+rscale = 50
+tobs = 1000#500
+o = 1
 
-ds = xr.open_dataset(f'nc_files/ensemble_output_n{nens}_b{bscale}_r{rscale}_t{tobs}_o{o}.nc')
+if tobs==-1:
+    inname = f'ensemble_output_n{nens}_b{bscale}_freerunning.nc'
+    outname = f'animation_enkf_n{nens}_b{bscale}_freerunning.mp4'
+else:
+    inname = f'ensemble_output_n{nens}_b{bscale}_r{rscale}_t{tobs}_o{o}.nc'
+    outname = f'ensemble_enkf_n{nens}_b{bscale}_r{rscale}_t{tobs}_o{o}.mp4'
+
+ds = xr.open_dataset(f'nc_files/' + inname)
 u = ds.u
 v = ds.v
 zeta = ds.vorticity
@@ -30,6 +37,7 @@ zeta_var = zeta_var/mse #zeta_var.max(('x','y'))#/mse  # normalize
 obsmask = ds.obsmask
 
 # setup maxima
+MZ=np.ceil(zeta.max().data)
 M=np.ceil(u.max().data)
 V=zeta_var.max().data
 
@@ -40,10 +48,10 @@ nframes = len(ds.time.values)
 fig, axes2d = plt.subplots(4, 2, figsize=(12, 12), constrained_layout=True)
 
 ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8 = axes2d.ravel()
-c1 = ax1.pcolormesh(x, y, zeta.isel(time=0), cmap="coolwarm", vmin=-M*10, vmax=M*10)
+c1 = ax1.pcolormesh(x, y, zeta.isel(time=0), cmap="coolwarm", vmin=-MZ, vmax=MZ)
 c3 = ax3.pcolormesh(x, y, u.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
 c5 = ax5.pcolormesh(x, y, v.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
-c2 = ax2.pcolormesh(x, y, zetaa.isel(time=0), cmap="coolwarm", vmin=-M*10, vmax=M*10)
+c2 = ax2.pcolormesh(x, y, zetaa.isel(time=0), cmap="coolwarm", vmin=-MZ, vmax=MZ)
 c4 = ax4.pcolormesh(x, y, ua.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
 c6 = ax6.pcolormesh(x, y, va.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
 c8 = ax7.pcolormesh(x, y, obsmask, cmap="viridis", vmin=0, vmax=1)
@@ -82,10 +90,10 @@ def __update(frame):
     c8.remove()
     
     # Draw the new frame
-    c1 = ax1.pcolormesh(x, y, zeta.isel(time=frame), cmap="coolwarm", vmin=-M*10, vmax=M*10)
+    c1 = ax1.pcolormesh(x, y, zeta.isel(time=frame), cmap="coolwarm", vmin=-MZ, vmax=MZ)
     c3 = ax3.pcolormesh(x, y, u.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
     c5 = ax5.pcolormesh(x, y, v.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
-    c2 = ax2.pcolormesh(x, y, zetaa.isel(time=frame), cmap="coolwarm", vmin=-M*10, vmax=M*10)
+    c2 = ax2.pcolormesh(x, y, zetaa.isel(time=frame), cmap="coolwarm", vmin=-MZ, vmax=MZ)
     c4 = ax4.pcolormesh(x, y, ua.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
     c6 = ax6.pcolormesh(x, y, va.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
     c8 = ax8.pcolormesh(x, y, zeta_var.isel(time=frame), cmap="viridis", vmin=0, vmax=V)
@@ -95,5 +103,5 @@ def __update(frame):
 
 ani = FuncAnimation(fig=fig, func=__update, frames=range(len(ds.time)), interval=100)
 
-ani.save(f'animations/animation_enkf_n{nens}_b{bscale}_r{rscale}_t{tobs}_o{o}.mp4')
+ani.save(f'animations/' + outname)
 print('done')

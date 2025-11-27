@@ -5,10 +5,10 @@ import time
 
 # setup time step
 C = 0.1 # courant number
-Re = 2000 # reynolds number
-dt = 1e-4 
-T = 1 
-history_interval = 100 # timestep interval for saving data
+Re = 4000#2200 # reynolds number
+dt = 2e-4#1e-4 
+T = 1
+history_interval = 50 # timestep interval for saving data
 
 # load initial condition with initial velocity zero
 ds_in = xr.open_dataset('nc_files/zonal_jet_ic.nc')
@@ -21,22 +21,25 @@ dx = ds_in.dx.data
 dy = ds_in.dy.data
 
 # setup initial velocity 
-U0 = C * dx / dt # scale velocity
-kappa = U0 * Ly / Re # diffusivity
+U = C * dx / dt  # max velocity
+U0 = 0.5 * U     # scale velocity
+ubgd = 0.5 * U   # background u
+vbgd = 0         # background v
+kappa = U * Ly / Re # U * Ly / Re # diffusivity
 print(U0, kappa)
 
 # rescale voriticity in terms of scale velocity
 zeta0 = U0 * zeta0
 
 # get solver
-solver = Flow2D(zeta0, dt, dx, dy, T, history_interval, kappa)
+solver = Flow2D(zeta0, ubgd, vbgd, dt, dx, dy, T, history_interval, kappa)
 
 # enkf parameters
 nens=100
-bscale=0.25
-rscale=1.00
-tobs=1000#500
-o = 2
+noise_scale=1#0.01
+stdr=50#2.0
+tobs=1000
+o = 1
 
 # setup observation mask 
 obsmask = np.zeros_like(zeta0, dtype=np.int64)
@@ -51,7 +54,10 @@ elif o == 3:
 print('nobs =', np.sum(obsmask))
 
 start = time.time()
-ds = solver.enkf(nens=nens, bscale=bscale, rscale=rscale, tobs=tobs, obsmask=obsmask)
+ds = solver.enkf(nens=nens, stdr=stdr, tobs=tobs, obsmask=obsmask, noise_scale=noise_scale)
 end = time.time()
 print('Seconds Elapsed:', end - start)
-ds.to_netcdf(f'nc_files/ensemble_output_n{nens}_b{bscale}_r{rscale}_t{tobs}_o{o}.nc')
+if tobs==-1:
+    ds.to_netcdf(f'nc_files/ensemble_output_n{nens}_b{noise_scale}_freerunning.nc')
+else:
+    ds.to_netcdf(f'nc_files/ensemble_output_n{nens}_b{noise_scale}_r{stdr}_t{tobs}_o{o}.nc')

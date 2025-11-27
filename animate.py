@@ -10,8 +10,6 @@ zeta = ds.vorticity
 step=10
 MZ=np.ceil(zeta.max().data)
 M=np.ceil(u.max().data)
-
-
 x, y = ds.x, ds.y
 nframes = len(ds.time.values)
 print(nframes)
@@ -25,11 +23,15 @@ ax1.set_title('Vorticity')
 ax2.set_title('Zonal Velocity')
 ax3.set_title('Meridional Velocity')
 
+# square axes 
+# ax1.set_aspect('equal')
+# ax2.set_aspect('equal')
+# ax3.set_aspect('equal')
+
+# set colorbars
 fig.colorbar(c1, ax=ax1)
 fig.colorbar(c2, ax=ax2)
 fig.colorbar(c3, ax=ax3)
-# plt.show()
-
 
 def __update(frame):
     global c1, c2, c3, nframes

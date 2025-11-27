@@ -9,7 +9,7 @@ Ly = 1#0.5
 dx = 0.01 
 dy = 0.01 
 dt = 1e-4 
-N = 10 # number of jets
+N = 6 # number of jets
 
 # initialize initial condition arrays
 nx, ny = int(Lx / dx) + 1, int(Ly / dy) + 1
@@ -22,11 +22,6 @@ U0 = 1 # scale velocity
 for j in range(ny):
     for i in range(nx):
         zeta0[j,i] = -2 * np.pi * N * U0 / Ly * np.sin(2 *np.pi * N * j / (ny - 1))
-
-# add small noise to initial condition, causes barotropic instability faster
-noise_scale = 0.02
-rng = np.random.default_rng(0) # seed so output is reproducible
-zeta0 += noise_scale * zeta0 * rng.uniform(-1, 1, (ny, nx)) 
 
 # setup grid
 x, y = np.linspace(0, Lx, nx), np.linspace(0, Ly, ny)

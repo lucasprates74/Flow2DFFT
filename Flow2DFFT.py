@@ -145,7 +145,7 @@ class Flow2D():
             u_new, v_new = self.__get_wind(psi_new)
             return zeta_new, u_new, v_new
         
-    def solve(self):
+    def solve(self, noise_scale = 0.01, seed = None):
         """
         Integrate the 2D barotropic flow equations
         """
@@ -154,14 +154,18 @@ class Flow2D():
         nt, nx, ny = self.nt, self.nx, self.ny
         history_interval = self.history_interval
         nsave = int(nt//history_interval)+1 # number of timesteps to save
-        print(nt//history_interval, nsave)
 
         # initialize arrays to save
         t, x, y = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny)
         u, v, zeta = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
         
         # set initial condition for voriticity
+        # add small noise to initial condition, causes barotropic instability faster
+        rng = np.random.default_rng(seed) # seed so output is reproducible
         zeta[0] = self.zeta0
+        # zeta[0] += noise_scale * self.zeta0 * rng.uniform(-1, 1, (ny, nx)) 
+        zeta[0] += rng.normal(loc=0, scale=noise_scale, size=(ny, nx)) 
+        
 
         # compute and set initial state for winds
         psi = self.__get_streamfunction(zeta[0])
@@ -223,15 +227,20 @@ class Flow2D():
         hh = np.zeros((nobs, self.ny * self.nx))
         obsmask_flat = np.reshape(obsmask, (self.ny*self.nx))
         
+        
         j = 0
         for i in range(len(obsmask_flat)):
             if obsmask_flat[i] == 1:
                 hh[j,i] = 1
                 j += 1
-                
+        
+        print(np.sum(obsmask))
+        print(np.sum(obsmask_flat))
+        print(np.sum(hh))
+
         return hh
     
-    def enkf(self, nens, bscale, rscale, tobs, obsmask, obsstart=0, ens_to_save=[0]):
+    def enkf(self, nens, stdr, tobs, obsmask, obsstart=0, ens_to_save=[0], noise_scale = 0.01, seed = None):
         """
         Integrate the 2D barotropic flow equations with data assimilation using an 
         Ensemble Kalman Filter
@@ -270,14 +279,20 @@ class Flow2D():
         zeta_var = np.zeros((nsave, ny, nx))
 
         # set initial condition for true vorticity
+        # add small noise to initial condition, causes barotropic instability faster
+        rng = np.random.default_rng(seed) # seed so output is reproducible
         zeta[0] = self.zeta0
-
+        # zeta[0] += noise_scale * self.zeta0 * rng.uniform(-1, 1, (ny, nx)) 
+        zeta[0] += rng.normal(loc=0, scale=noise_scale, size=(ny, nx)) 
+        max_zeta = np.max(np.abs(self.zeta0))
         # compute initial conditon for true winds
         psi = self.__get_streamfunction(zeta[0])
         u[0], v[0] = self.__get_wind(psi)
 
         # save ensemble forecast initial condition 
-        zetaa = np.random.normal(loc=self.zeta0, scale=bscale * np.where(np.abs(self.zeta0)>1,np.abs(self.zeta0),1), size=(nens,ny,nx))
+        zetaa = np.resize(self.zeta0, (nens, ny, nx))
+        # zetaa += noise_scale * zetaa * np.random.uniform(-1, 1, (nens, ny, nx)) 
+        zetaa += np.random.normal(loc=0, scale=noise_scale, size=(nens, ny, nx)) 
 
         # flatten forecasts to compute background error covariance matrix
         xf = np.reshape(zetaa, (nens, ny*nx))
@@ -328,9 +343,12 @@ class Flow2D():
 
                 # setup observations array
                 xo = np.resize((hh @ xt.T).T, (nens, hh.shape[0]))
-                
+
                 # setup observation errors
-                nu = np.random.normal(loc=0, scale=rscale * np.where(np.abs(xo)>1,np.abs(xo),1), size=(nens,hh.shape[0]))
+                # nu = np.random.normal(loc=0, scale=rscale * np.where(np.abs(xo)>1,np.abs(xo),1), size=(nens,hh.shape[0]))
+                # max_xo = np.where(np.abs(xo) > 0.01 * max_zeta, np.abs(xo), 0.01 * max_zeta) # prevent scale factor from getting arbitrarily small
+                # nu =  stdr * np.abs(xo) * np.random.uniform(-1,1, (nens, hh.shape[0]))
+                nu = np.random.normal(loc=0,scale=stdr, size=(nens, hh.shape[0]))
                 nu -= np.mean(nu, axis=0) # nu should be unbiased
                 xo += nu
                 rr = nu.T @ nu / nu.shape[0]
@@ -339,7 +357,7 @@ class Flow2D():
                 hbhT = hh @ bb @ hh.T
                 print('nstep = ', k, 
                       ',     assimilating obs . . . rms of obs =', np.sqrt(np.trace(rr)), 
-                      ',     rms of model at obs =', np.sqrt(np.trace(hbhT)))
+                      ',     rms of model at obs locations =', np.sqrt(np.trace(hbhT)))
 
                 # get kalman gain 
                 ss = hbhT + rr
