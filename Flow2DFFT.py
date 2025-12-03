@@ -233,10 +233,6 @@ class Flow2D():
             if obsmask_flat[i] == 1:
                 hh[j,i] = 1
                 j += 1
-        
-        print(np.sum(obsmask))
-        print(np.sum(obsmask_flat))
-        print(np.sum(hh))
 
         return hh
     
@@ -279,26 +275,21 @@ class Flow2D():
         zeta_var = np.zeros((nsave, ny, nx))
 
         # set initial condition for true vorticity
-        # add small noise to initial condition, causes barotropic instability faster
-        rng = np.random.default_rng(seed) # seed so output is reproducible
-        zeta[0] = self.zeta0
-        # zeta[0] += noise_scale * self.zeta0 * rng.uniform(-1, 1, (ny, nx)) 
+        zeta[0] = self.zeta0 # idealized initial state
+        rng = np.random.default_rng(seed) # seeded noise to perturb initial state
         zeta[0] += rng.normal(loc=0, scale=noise_scale, size=(ny, nx)) 
-        max_zeta = np.max(np.abs(self.zeta0))
+        
         # compute initial conditon for true winds
         psi = self.__get_streamfunction(zeta[0])
         u[0], v[0] = self.__get_wind(psi)
 
-        # save ensemble forecast initial condition 
+        # set initial condition for forecast ensemble
         zetaa = np.resize(self.zeta0, (nens, ny, nx))
-        # zetaa += noise_scale * zetaa * np.random.uniform(-1, 1, (nens, ny, nx)) 
         zetaa += np.random.normal(loc=0, scale=noise_scale, size=(nens, ny, nx)) 
 
-        # flatten forecasts to compute background error covariance matrix
-        xf = np.reshape(zetaa, (nens, ny*nx))
-        xfc = xf-np.mean(xf, axis=0)
-        bb = xfc.T @ xfc / xfc.shape[0]
-        zeta_var[0] = np.reshape(np.diag(bb), (ny, nx)) # save in initial variance
+        # compute initial rms
+        variance = np.var(zetaa, ddof=1, axis=0)
+        zeta_var[0] = variance # save in initial variance
         
         # compute initial conditon for forecast winds
         psia = self.__get_streamfunction(zetaa)
@@ -311,7 +302,7 @@ class Flow2D():
         print('nstep = ', 0, 
               ',     total energy = ', self.__total_energy(u[0], v[0]),
               ',     max divergence = ', self.__divergence(u[0], v[0]),
-              ',     rms = ', np.sqrt(np.trace(bb)))
+              ',     rms = ', np.sqrt(np.sum(variance)))
         
 
         # save ics for ensemble members we want to save
@@ -323,44 +314,52 @@ class Flow2D():
         # copy ics to 2D arrays for integration
         uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
 
+        # important constants
+        N = ny * nx 
+        nobs = hh.shape[0]
+
         # main loop
         start = time.time()
         for k in range(1, nt + 1):
             # evolve the true state
+            s1 = time.time()
             zetacurr, ucurr, vcurr = self.__update(zetaprev, uprev, vprev)
-
+            s2 = time.time()
             # evolve the forecast
             zetaf, uf, vf = self.__update(zetaa, ua, va)
+            s3 = time.time()
+            print('Update truth:', s2-s1, 's,     Update forecast', s3-s2)
 
             if (tobs != -1) and (k-obsstart) % tobs == 0: 
                 # flatten truth and forecast into a vector
-                xt = np.reshape(zetacurr, (ny*nx))
-                xf = np.reshape(zetaf, (nens, ny*nx))
+                xt = np.reshape(zetacurr, (N))
+                xf = np.reshape(zetaf, (nens, N))
                 
-                # compute background covariance
+                # compute background error covariance matrix
                 xfc = xf-np.mean(xf, axis=0)
-                bb = xfc.T @ xfc / xfc.shape[0]
+                bb = xfc.T @ xfc / (nens - 1)
 
                 # setup observations array
-                xo = np.resize((hh @ xt.T).T, (nens, hh.shape[0]))
+                xo_perfect = (hh @ xt.T).T 
+                xo = np.resize(xo_perfect, (nens, nobs)) 
 
                 # setup observation errors
-                # nu = np.random.normal(loc=0, scale=rscale * np.where(np.abs(xo)>1,np.abs(xo),1), size=(nens,hh.shape[0]))
-                # max_xo = np.where(np.abs(xo) > 0.01 * max_zeta, np.abs(xo), 0.01 * max_zeta) # prevent scale factor from getting arbitrarily small
-                # nu =  stdr * np.abs(xo) * np.random.uniform(-1,1, (nens, hh.shape[0]))
-                nu = np.random.normal(loc=0,scale=stdr, size=(nens, hh.shape[0]))
+                nu = np.random.normal(loc=0,scale=stdr, size=(nens, nobs))
                 nu -= np.mean(nu, axis=0) # nu should be unbiased
                 xo += nu
-                rr = nu.T @ nu / nu.shape[0]
+
+                # diagonal observation error covariance matrix
+                rr = np.diag(np.var(nu, ddof=1, axis=0))# nu.T @ nu / (nens - 1) # stdr ** 2 * np.identity(nobs)
                 
                 # background covariance projected into rspace
                 hbhT = hh @ bb @ hh.T
+                ss = hbhT + rr
                 print('nstep = ', k, 
                       ',     assimilating obs . . . rms of obs =', np.sqrt(np.trace(rr)), 
-                      ',     rms of model at obs locations =', np.sqrt(np.trace(hbhT)))
+                      ',     rms of model at obs locations =', np.sqrt(np.trace(hbhT)),
+                      ',     Condition number of HBH^T+R =', np.linalg.cond((ss)))
 
                 # get kalman gain 
-                ss = hbhT + rr
                 rhs = bb @ hh.T
                 kk = np.linalg.solve(ss.T, rhs.T).T
 
@@ -376,7 +375,6 @@ class Flow2D():
 
             else:
                 # update fields
-                xa = np.reshape(zetaf, (nens, ny*nx))
                 zetaa = np.array(zetaf)
                 ua = np.array(uf)
                 va = np.array(vf)
@@ -384,16 +382,15 @@ class Flow2D():
             # save output
             if k % history_interval == 0:
                 
-                # compute new covariance for trace
-                xac = xa-np.mean(xa, axis=0)
-                pa = xac.T @ xac / xac.shape[0]
+                # compute variance 
+                variance = np.var(zetaa, ddof=1, axis=0)
                 
                 # printout
                 end = time.time()
                 print('nstep = ', k, 
                       ',     total energy = ', self.__total_energy(ucurr, vcurr),
                       ',     max divergence = ', self.__divergence(ucurr, vcurr),
-                      ',     rms = ', np.sqrt(np.trace(pa)),
+                      ',     rms = ', np.sqrt(np.sum(variance)),
                       ',     seconds elapsed = ', end - start)
                 start = time.time()
                 
@@ -407,7 +404,7 @@ class Flow2D():
                 vens[index] = va[ens_to_save,:,:]
 
                 # compute and save variance
-                zeta_var[index] = np.reshape(np.diag(pa), (ny, nx))
+                zeta_var[index] = variance
 
                 # compute and save means
                 zetamean[index], umean[index], vmean[index] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
