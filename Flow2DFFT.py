@@ -1,6 +1,7 @@
 import numpy as np
 import xarray as xr
 import scipy.fft as fft
+import pickle as pkl
 import time
 
 
@@ -140,9 +141,17 @@ class Flow2D():
         return u, v
     
     def __update(self, zeta, u, v):
+            s1 = time.time()
             zeta_new = self.__update_zeta(zeta, u, v)
+            s2 = time.time()
             psi_new = self.__get_streamfunction(zeta_new)
+            s3 = time.time()
             u_new, v_new = self.__get_wind(psi_new)
+            s4 = time.time()
+            # print('Update zeta =', s2-s1,
+            #       ',    update psi =', s3-s2,
+            #       ',    update winds =', s4-s3,
+            #       ',    Total= =', s4-s1)
             return zeta_new, u_new, v_new
         
     def solve(self, noise_scale = 0.01, seed = None):
@@ -271,8 +280,12 @@ class Flow2D():
         # setup arrays for forecast means 
         umean, vmean, zetamean = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
         
-        # setup array to store ensemble variance 
+        # setup array to store ensemble variance and correlation (with central gridcell)
         zeta_var = np.zeros((nsave, ny, nx))
+        corr = np.zeros((nsave, ny, nx))
+
+        # initialize rms array
+        rms = np.zeros(nt + 1)
 
         # set initial condition for true vorticity
         zeta[0] = self.zeta0 # idealized initial state
@@ -287,9 +300,17 @@ class Flow2D():
         zetaa = np.resize(self.zeta0, (nens, ny, nx))
         zetaa += np.random.normal(loc=0, scale=noise_scale, size=(nens, ny, nx)) 
 
-        # compute initial rms
+        # compute initial rms and correlation
         variance = np.var(zetaa, ddof=1, axis=0)
         zeta_var[0] = variance # save in initial variance
+        rms[0] = np.sqrt(np.sum(variance)) # save initial rms
+
+        # compute initial correlation 
+        zetaam = zetaa.mean(axis=0)
+        zetac = zetaa - zetaam
+        zetac_point = zetac[:,int(ny//2),int(nx//2)] # zeta at point we care about
+        covar = np.sum(zetac * zetac_point[:,None,None], axis = 0) / (nens - 1) # covariance with point we care about
+        corr[0] =  covar / variance[int(ny//2),int(nx//2)] # correlation with point we care about
         
         # compute initial conditon for forecast winds
         psia = self.__get_streamfunction(zetaa)
@@ -302,7 +323,7 @@ class Flow2D():
         print('nstep = ', 0, 
               ',     total energy = ', self.__total_energy(u[0], v[0]),
               ',     max divergence = ', self.__divergence(u[0], v[0]),
-              ',     rms = ', np.sqrt(np.sum(variance)))
+              ',     rms = ', rms[0])
         
 
         # save ics for ensemble members we want to save
@@ -322,13 +343,10 @@ class Flow2D():
         start = time.time()
         for k in range(1, nt + 1):
             # evolve the true state
-            s1 = time.time()
             zetacurr, ucurr, vcurr = self.__update(zetaprev, uprev, vprev)
-            s2 = time.time()
+
             # evolve the forecast
             zetaf, uf, vf = self.__update(zetaa, ua, va)
-            s3 = time.time()
-            print('Update truth:', s2-s1, 's,     Update forecast', s3-s2)
 
             if (tobs != -1) and (k-obsstart) % tobs == 0: 
                 # flatten truth and forecast into a vector
@@ -379,18 +397,19 @@ class Flow2D():
                 ua = np.array(uf)
                 va = np.array(vf)
 
+            # compute variance 
+            variance = np.var(zetaa, ddof=1, axis=0)
+            rms[k] = np.sqrt(np.sum(variance))
+
             # save output
             if k % history_interval == 0:
-                
-                # compute variance 
-                variance = np.var(zetaa, ddof=1, axis=0)
-                
+
                 # printout
                 end = time.time()
                 print('nstep = ', k, 
                       ',     total energy = ', self.__total_energy(ucurr, vcurr),
                       ',     max divergence = ', self.__divergence(ucurr, vcurr),
-                      ',     rms = ', np.sqrt(np.sum(variance)),
+                      ',     rms = ', rms[k],
                       ',     seconds elapsed = ', end - start)
                 start = time.time()
                 
@@ -406,12 +425,18 @@ class Flow2D():
                 # compute and save variance
                 zeta_var[index] = variance
 
+                # compute and save correlation with central gridpoint 
+                zetaam = zetaa.mean(axis=0)
+                zetac = zetaa - zetaam
+                zetac_point = zetac[:,int(ny//2),int(nx//2)] # zeta at point we care about
+                covar = np.sum(zetac * zetac_point[:,None,None], axis = 0) / (nens - 1) # covariance with point we care about
+                corr[index] =  covar / variance[int(ny//2),int(nx//2)] # correlation with point we care about
+
                 # compute and save means
-                zetamean[index], umean[index], vmean[index] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
+                zetamean[index], umean[index], vmean[index] = zetaam, ua.mean(axis=0), va.mean(axis=0) 
 
             # deep copy curr data to be the next previous data
             uprev, vprev, zetaprev = np.array(ucurr), np.array(vcurr), np.array(zetacurr)
-            
             
 
         # save data
@@ -426,6 +451,7 @@ class Flow2D():
                                     'v_mean':(['time', 'y', 'x'], v),
                                     'vorticity_mean':(['time', 'y', 'x'], zeta),
                                     'vorticity_var':(['time', 'y', 'x'], zeta_var),
+                                    'vorticity_corr':(['time', 'y', 'x'], corr),
                                     'obsmask':(['y', 'x'], obsmask)
                                 },
                         coords={
@@ -435,7 +461,7 @@ class Flow2D():
                                 'y':('y', y)
                             })
     
-        return ds
+        return ds, rms
 
 
 

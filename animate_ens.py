@@ -5,9 +5,9 @@ from matplotlib.animation import FuncAnimation
 
 nens=100
 bscale = 1
-rscale = 50
-tobs = 1000#500
-o = 1
+rscale = 5#1000000
+tobs = -1#1000#500
+o = 3
 
 if tobs==-1:
     inname = f'ensemble_output_n{nens}_b{bscale}_freerunning.nc'
@@ -21,10 +21,11 @@ u = ds.u
 v = ds.v
 zeta = ds.vorticity
 
-ua = ds.u_ens.sel(ensemble_id=0)#.mean('ensemble_id')
-va = ds.v_ens.sel(ensemble_id=0)#.mean('ensemble_id')
-zetaa = ds.vorticity_ens.sel(ensemble_id=0)#.mean('ensemble_id')
+ua = ds.u_ens.mean('ensemble_id')
+va = ds.v_ens.mean('ensemble_id')
+zetaa = ds.vorticity_ens.mean('ensemble_id')
 zeta_var = ds.vorticity_var
+zeta_corr = ds.vorticity_corr
 
 # get rmse
 mse = zeta_var.sum(('y', 'x'))
@@ -55,7 +56,8 @@ c2 = ax2.pcolormesh(x, y, zetaa.isel(time=0), cmap="coolwarm", vmin=-MZ, vmax=MZ
 c4 = ax4.pcolormesh(x, y, ua.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
 c6 = ax6.pcolormesh(x, y, va.isel(time=0), cmap="coolwarm", vmin=-M, vmax=M)
 c8 = ax7.pcolormesh(x, y, obsmask, cmap="viridis", vmin=0, vmax=1)
-c8 = ax8.pcolormesh(x, y, zeta_var.isel(time=0), cmap="viridis", vmin=0, vmax=V)
+# c8 = ax8.pcolormesh(x, y, zeta_var.isel(time=0), cmap="viridis", vmin=0, vmax=V)
+c8 = ax8.pcolormesh(x, y, zeta_corr.isel(time=0), cmap="PRGn", vmin=-1, vmax=1)
 
 ax1.set_title('Vorticity')
 ax3.set_title('Zonal Velocity')
@@ -64,7 +66,8 @@ ax2.set_title('Vorticity')
 ax4.set_title('Zonal Velocity')
 ax6.set_title('Meridional Velocity')
 ax7.set_title('Observing Network')
-ax8.set_title(f'Variance/MSE (RMSE={round(rmse[0], 2)})')
+# ax8.set_title(f'Variance/MSE (RMSE={round(rmse[0], 2)})')
+ax8.set_title(f'Correlation')
 
 fig.colorbar(c1, ax=ax1)
 fig.colorbar(c2, ax=ax2)
@@ -96,8 +99,9 @@ def __update(frame):
     c2 = ax2.pcolormesh(x, y, zetaa.isel(time=frame), cmap="coolwarm", vmin=-MZ, vmax=MZ)
     c4 = ax4.pcolormesh(x, y, ua.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
     c6 = ax6.pcolormesh(x, y, va.isel(time=frame), cmap="coolwarm", vmin=-M, vmax=M)
-    c8 = ax8.pcolormesh(x, y, zeta_var.isel(time=frame), cmap="viridis", vmin=0, vmax=V)
-    ax8.set_title(f'Variance/MSE (RMSE={round(rmse[frame], 2)})')
+    # c8 = ax8.pcolormesh(x, y, zeta_var.isel(time=frame), cmap="viridis", vmin=0, vmax=V)
+    c8 = ax8.pcolormesh(x, y, zeta_corr.isel(time=frame), cmap="PRGn", vmin=-1, vmax=1)
+    # ax8.set_title(f'Variance/MSE (RMSE={round(rmse[frame], 2)})')
 
     return [c1, c2, c3, c4, c5, c6, c8]
 

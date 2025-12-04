@@ -4,5 +4,15 @@
 # ignore all netcdf files 
 *.nc 
 
+# ignore all numpy files
+*.npy
+
+# ignore all jupyter notebooks
+*.ipynb
+
+# ignore some of my test scripts 
+test_rr.py
+run_all.py 
+
 # ignore all pychache files 
 __pycache__/
