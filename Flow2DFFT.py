@@ -259,8 +259,6 @@ class Flow2D():
             - obsstart: the timestep of the first observation. If 0, obs start at obsstart=tobs
             - ens_to_save: list of ensemble members to save
         """
-        # maybe add a freerunning forecast to compare to
-
         # rename vars
         nt, nx, ny = self.nt, self.nx, self.ny
         history_interval = self.history_interval
@@ -268,24 +266,24 @@ class Flow2D():
         nens_to_save = len(ens_to_save) # number of ensemble members to save
 
         
-        # initialize arrays to save
+        # initialize 'dimension' arrays
         t, x, y, ensemble_id = np.linspace(0, self.T, nsave), np.linspace(0, self.Lx, nx), np.linspace(0, self.Ly, ny),  np.array(ens_to_save)
 
-        # setup truth arrays
+        # initialize truth arrays
         u, v, zeta = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
         
-        # setup ensemble forecast arrays
+        # initialize ensemble forecast arrays
         uens, vens, zetaens = np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx)), np.zeros((nsave, nens_to_save, ny, nx))
 
-        # setup arrays for forecast means 
+        # initialize arrays for forecast means 
         umean, vmean, zetamean = np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx)), np.zeros((nsave, ny, nx))
         
-        # setup array to store ensemble variance and correlation (with central gridcell)
+        # initialize arrays to store ensemble variance and correlation (with central gridcell)
         zeta_var = np.zeros((nsave, ny, nx))
         corr = np.zeros((nsave, ny, nx))
 
-        # initialize rms array
-        rms = np.zeros(nt + 1)
+        # initialize rms arrays
+        rms, rmsu, rmsv = np.zeros(nt + 1), np.zeros(nt + 1), np.zeros(nt + 1)
 
         # set initial condition for true vorticity
         zeta[0] = self.zeta0 # idealized initial state
@@ -300,22 +298,24 @@ class Flow2D():
         zetaa = np.resize(self.zeta0, (nens, ny, nx))
         zetaa += np.random.normal(loc=0, scale=noise_scale, size=(nens, ny, nx)) 
 
-        # compute initial rms and correlation
-        variance = np.var(zetaa, ddof=1, axis=0)
-        zeta_var[0] = variance # save in initial variance
-        rms[0] = np.sqrt(np.sum(variance)) # save initial rms
-
         # compute initial correlation 
         zetaam = zetaa.mean(axis=0)
         zetac = zetaa - zetaam
         zetac_point = zetac[:,int(ny//2),int(nx//2)] # zeta at point we care about
         covar = np.sum(zetac * zetac_point[:,None,None], axis = 0) / (nens - 1) # covariance with point we care about
+        variance = np.var(zetaa, ddof=1, axis=0) # get the variance array
         corr[0] =  covar / variance[int(ny//2),int(nx//2)] # correlation with point we care about
         
         # compute initial conditon for forecast winds
         psia = self.__get_streamfunction(zetaa)
         ua, va = self.__get_wind(psia)
         
+        # compute initial rms and correlation
+        zeta_var[0] = variance # save in initial variance
+        rms[0] = np.sqrt(np.sum(variance)) # save initial rms
+        rmsu[0] = np.sqrt(np.sum(np.var(ua, ddof=1, axis=0)))
+        rmsv[0] = np.sqrt(np.sum(np.var(va, ddof=1, axis=0)))
+
         # setup observing network
         hh = self.__forward_model(obsmask)
 
@@ -332,7 +332,7 @@ class Flow2D():
         # save ics for means 
         umean[0], vmean[0], zetamean[0] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
 
-        # copy ics to 2D arrays for integration
+        # copy truth ics to 2D arrays for integration
         uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
 
         # important constants
@@ -400,6 +400,8 @@ class Flow2D():
             # compute variance 
             variance = np.var(zetaa, ddof=1, axis=0)
             rms[k] = np.sqrt(np.sum(variance))
+            rmsu[k] = np.sqrt(np.sum(np.var(ua, ddof=1, axis=0)))
+            rmsv[k] = np.sqrt(np.sum(np.var(va, ddof=1, axis=0)))
 
             # save output
             if k % history_interval == 0:
@@ -461,7 +463,7 @@ class Flow2D():
                                 'y':('y', y)
                             })
     
-        return ds, rms
+        return ds, rms, rmsu, rmsv
 
 
 
