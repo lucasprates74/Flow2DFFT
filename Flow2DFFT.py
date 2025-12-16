@@ -250,14 +250,14 @@ class Flow2D():
         Integrate the 2D barotropic flow equations with data assimilation using an 
         Ensemble Kalman Filter
             - nens: number of ensemble members
-            - bscale: ensemble of initial conditions calculated using a normal ditribution at 
-                      each gridcell, centered on the zeta0, with spread bscale * |zeta0|
-            - rscale: ensemble of measurements calculated using a normal ditribution at 
-                      each gridcell, centered on the zeta0, with spread rscale * |zeta0|
+            - stdr: observation errors are sampled from the normal distribution N(0, stdr)
             - tobs: interval between observations, in number of time steps. For tobs == -1, forecast is freerunning
             - obsmask: mask indicating which gridcells are observed
             - obsstart: the timestep of the first observation. If 0, obs start at obsstart=tobs
             - ens_to_save: list of ensemble members to save
+            - noise_scale: Noise added to truth and ensemble of initial conditions is 
+              sampled from the normal distribution N(0, noise_scale)
+            - seed: optionally seed the true state to test enkf on a reproducible truth
         """
         # rename vars
         nt, nx, ny = self.nt, self.nx, self.ny
