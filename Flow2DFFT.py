@@ -154,7 +154,7 @@ class Flow2D():
             #       ',    Total= =', s4-s1)
             return zeta_new, u_new, v_new
         
-    def solve(self, noise_scale = 0.01, seed = None):
+    def solve(self, noise_scale = 1, seed = None):
         """
         Integrate the 2D barotropic flow equations
         """
@@ -172,7 +172,7 @@ class Flow2D():
         # add small noise to initial condition, causes barotropic instability faster
         rng = np.random.default_rng(seed) # seed so output is reproducible
         zeta[0] = self.zeta0
-        # zeta[0] += noise_scale * self.zeta0 * rng.uniform(-1, 1, (ny, nx)) 
+        
         zeta[0] += rng.normal(loc=0, scale=noise_scale, size=(ny, nx)) 
         
 
@@ -245,7 +245,7 @@ class Flow2D():
 
         return hh
     
-    def enkf(self, nens, stdr, tobs, obsmask, obsstart=0, ens_to_save=[0], noise_scale = 0.01, seed = None):
+    def enkf(self, nens, stdr, tobs, obsmask, obsstart=0, ens_to_save=[0], noise_scale = 1, seed = None):
         """
         Integrate the 2D barotropic flow equations with data assimilation using an 
         Ensemble Kalman Filter
