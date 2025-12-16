@@ -304,7 +304,7 @@ class Flow2D():
         zetac_point = zetac[:,int(ny//2),int(nx//2)] # zeta at point we care about
         covar = np.sum(zetac * zetac_point[:,None,None], axis = 0) / (nens - 1) # covariance with point we care about
         variance = np.var(zetaa, ddof=1, axis=0) # get the variance array
-        corr[0] =  covar / variance[int(ny//2),int(nx//2)] # correlation with point we care about
+        corr[0] =  covar / np.sqrt(variance[int(ny//2),int(nx//2)] / variance) # correlation with point we care about
         
         # compute initial conditon for forecast winds
         psia = self.__get_streamfunction(zetaa)
@@ -432,8 +432,8 @@ class Flow2D():
                 zetac = zetaa - zetaam
                 zetac_point = zetac[:,int(ny//2),int(nx//2)] # zeta at point we care about
                 covar = np.sum(zetac * zetac_point[:,None,None], axis = 0) / (nens - 1) # covariance with point we care about
-                corr[index] =  covar / variance[int(ny//2),int(nx//2)] # correlation with point we care about
-
+                corr[index] =  covar / np.sqrt(variance[int(ny//2),int(nx//2)] * variance) # correlation with point we care about
+                print(np.max(corr[index]), np.min(corr[index]))
                 # compute and save means
                 zetamean[index], umean[index], vmean[index] = zetaam, ua.mean(axis=0), va.mean(axis=0) 
 
