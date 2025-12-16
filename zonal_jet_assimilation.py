@@ -52,22 +52,27 @@ o = args.o
 # setup observation mask 
 obsmask = np.zeros_like(zeta0, dtype=np.int64)
 ny, nx = obsmask.shape
-if o == 1:
-    obsmask[::10,::10]=1
-elif o == 2:
-    obsmask[::10,0:int(nx//2):10]=1
-elif o == 3:
-    obsmask[:,int(nx//2)-2:int(nx//2)+2]=1
+if tobs != -1:
+    if o == 1:
+        obsmask[::10,::10]=1
+    elif o == 2:
+        obsmask[::10,0:int(nx//2):10]=1
+    elif o == 3:
+        obsmask[:,int(nx//2)-2:int(nx//2)+2]=1
 
 print('nobs =', np.sum(obsmask))
 
 start = time.time()
-ds, rms = solver.enkf(nens=nens, stdr=stdr, tobs=tobs, obsmask=obsmask, noise_scale=noise_scale)
+ds, rms, rmsu, rmsv = solver.enkf(nens=nens, stdr=stdr, tobs=tobs, obsmask=obsmask, noise_scale=noise_scale)
 end = time.time()
 print('Seconds Elapsed:', end - start)
 if tobs==-1:
     ds.to_netcdf(f'nc_files/ensemble_output_n{nens}_b{noise_scale}_freerunning.nc')
     np.save(f'numpy_files/rms_n{nens}_b{noise_scale}_freerunning', rms)
+    np.save(f'numpy_files/rmsu_n{nens}_b{noise_scale}_freerunning', rmsu)
+    np.save(f'numpy_files/rmsv_n{nens}_b{noise_scale}_freerunning', rmsv)
 else:
     ds.to_netcdf(f'nc_files/ensemble_output_n{nens}_b{noise_scale}_r{stdr}_t{tobs}_o{o}.nc')
     np.save(f'numpy_files/rms_n{nens}_b{noise_scale}_r{stdr}_t{tobs}_o{o}', rms)
+    np.save(f'numpy_files/rmsu_n{nens}_b{noise_scale}_r{stdr}_t{tobs}_o{o}', rmsu)
+    np.save(f'numpy_files/rmsv_n{nens}_b{noise_scale}_r{stdr}_t{tobs}_o{o}', rmsv)
