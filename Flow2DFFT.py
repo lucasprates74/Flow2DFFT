@@ -451,7 +451,7 @@ class Flow2D():
                                     'vorticity_ens':(['time', 'ensemble_id', 'y', 'x'], zetaens),
                                     'u_mean':(['time', 'y', 'x'], u),
                                     'v_mean':(['time', 'y', 'x'], v),
-                                    'vorticity_mean':(['time', 'y', 'x'], zeta),
+                                    'vorticity_mean':(['time', 'y', 'x'], zetaam),
                                     'vorticity_var':(['time', 'y', 'x'], zeta_var),
                                     'vorticity_corr':(['time', 'y', 'x'], corr),
                                     'obsmask':(['y', 'x'], obsmask)

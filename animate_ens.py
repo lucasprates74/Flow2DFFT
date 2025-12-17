@@ -25,9 +25,9 @@ zeta = ds.vorticity
 t = ds.time
 
 # get variables
-ua = ds.u_ens.mean('ensemble_id')
-va = ds.v_ens.mean('ensemble_id')
-zetaa = ds.vorticity_ens.mean('ensemble_id')
+ua = ds.u_mean#ens.mean('ensemble_id')
+va = ds.v_mean#ens.mean('ensemble_id')
+zetaa = ds.vorticity_mean#ens.mean('ensemble_id')
 
 # compute variance and corr
 zeta_var = ds.vorticity_var
