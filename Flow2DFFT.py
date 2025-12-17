@@ -330,7 +330,10 @@ class Flow2D():
         uens[0], vens[0], zetaens[0] = np.array(ua[ens_to_save,:,:]), np.array(va[ens_to_save,:,:]), np.array(zetaa[ens_to_save,:,:])
         
         # save ics for means 
-        umean[0], vmean[0], zetamean[0] = np.array(zetaa.mean(axis=0)), np.array(ua.mean(axis=0)), np.array(va.mean(axis=0)) 
+        zetamean[0] = np.mean(zetaa, axis=0)
+        umean[0] = np.mean(ua, axis=0)
+        vmean[0] = np.mean(va, axis=0) 
+         
 
         # copy truth ics to 2D arrays for integration
         uprev, vprev, zetaprev = np.array(u[0]), np.array(v[0]), np.array(zeta[0])
@@ -428,14 +431,16 @@ class Flow2D():
                 zeta_var[index] = variance
 
                 # compute and save correlation with central gridpoint 
-                zetaam = zetaa.mean(axis=0)
+                zetaam = np.mean(zetaa, axis=0)
                 zetac = zetaa - zetaam
                 zetac_point = zetac[:,int(ny//2),int(nx//2)] # zeta at point we care about
                 covar = np.sum(zetac * zetac_point[:,None,None], axis = 0) / (nens - 1) # covariance with point we care about
                 corr[index] =  covar / np.sqrt(variance[int(ny//2),int(nx//2)] * variance) # correlation with point we care about
                 
                 # compute and save means
-                zetamean[index], umean[index], vmean[index] = zetaam, ua.mean(axis=0), va.mean(axis=0) 
+                zetamean[index] = np.array(zetaam)
+                umean[index] = np.mean(ua, axis=0)
+                vmean[index] = np.mean(va, axis=0) 
 
             # deep copy curr data to be the next previous data
             uprev, vprev, zetaprev = np.array(ucurr), np.array(vcurr), np.array(zetacurr)
