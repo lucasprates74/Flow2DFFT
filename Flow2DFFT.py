@@ -433,7 +433,7 @@ class Flow2D():
                 zetac_point = zetac[:,int(ny//2),int(nx//2)] # zeta at point we care about
                 covar = np.sum(zetac * zetac_point[:,None,None], axis = 0) / (nens - 1) # covariance with point we care about
                 corr[index] =  covar / np.sqrt(variance[int(ny//2),int(nx//2)] * variance) # correlation with point we care about
-                print(np.max(corr[index]), np.min(corr[index]))
+                
                 # compute and save means
                 zetamean[index], umean[index], vmean[index] = zetaam, ua.mean(axis=0), va.mean(axis=0) 
 
@@ -449,9 +449,9 @@ class Flow2D():
                                     'u_ens':(['time', 'ensemble_id', 'y', 'x'], uens),
                                     'v_ens':(['time', 'ensemble_id', 'y', 'x'], vens),
                                     'vorticity_ens':(['time', 'ensemble_id', 'y', 'x'], zetaens),
-                                    'u_mean':(['time', 'y', 'x'], u),
-                                    'v_mean':(['time', 'y', 'x'], v),
-                                    'vorticity_mean':(['time', 'y', 'x'], zetaam),
+                                    'u_mean':(['time', 'y', 'x'], umean),
+                                    'v_mean':(['time', 'y', 'x'], vmean),
+                                    'vorticity_mean':(['time', 'y', 'x'], zetamean),
                                     'vorticity_var':(['time', 'y', 'x'], zeta_var),
                                     'vorticity_corr':(['time', 'y', 'x'], corr),
                                     'obsmask':(['y', 'x'], obsmask)
